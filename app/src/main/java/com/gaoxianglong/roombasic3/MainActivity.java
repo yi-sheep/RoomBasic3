@@ -22,8 +22,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mAdapter = new MyAdapter(true); // 初始化第一个适配器，使用的是卡片item
-        mAdapter2 = new MyAdapter(false); // 初始化第二个适配器，使用的是默认item
+        mViewModel = ViewModelProviders.of(this).get(WordViewModel.class);
+
+        mAdapter = new MyAdapter(true,mViewModel); // 初始化第一个适配器，使用的是卡片item
+        mAdapter2 = new MyAdapter(false,mViewModel); // 初始化第二个适配器，使用的是默认item
 
         mRecyclerView = findViewById(R.id.recyclerView);
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this)); // 给recyclerView设置布局样式
@@ -42,14 +44,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         });
 
-        mViewModel = ViewModelProviders.of(this).get(WordViewModel.class);
         mViewModel.getQueryAllWordLive().observe(this,words -> {
+            int temp = mAdapter.getItemCount();
+            int temp2 = mAdapter2.getItemCount();
             // 在这里liveData监听到数据发生变化后
             // 将两个适配器的数据都有设置好，再通过调用notifyDataSetChanged()方法告诉recyclerView数据发生了变化你需要刷新界面
+
             mAdapter.setWords(words);
             mAdapter2.setWords(words);
-            mAdapter.notifyDataSetChanged();
-            mAdapter2.notifyDataSetChanged();
+            if (temp!=words.size()) {
+                mAdapter.notifyDataSetChanged();
+                mAdapter2.notifyDataSetChanged();
+            }
         });
         findViewById(R.id.button).setOnClickListener(this);
         findViewById(R.id.button2).setOnClickListener(this);

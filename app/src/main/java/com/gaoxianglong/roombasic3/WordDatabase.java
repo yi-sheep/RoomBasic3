@@ -10,14 +10,14 @@ import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
 // entities这个指定实体，version这个指定版本，exportSchema指定导出模式
-@Database(entities = {Word.class},version = 3,exportSchema = false) // 当对数据表实体做了新的更改就需要改变这里的版本
+@Database(entities = {Word.class},version = 4,exportSchema = false) // 当对数据表实体做了新的更改就需要改变这里的版本
 public abstract class WordDatabase extends RoomDatabase {
     private static WordDatabase INSTANCE;
     static synchronized WordDatabase getDatabase(Context context) {
         if (INSTANCE == null) {
             INSTANCE = Room.databaseBuilder(context.getApplicationContext(),WordDatabase.class,"Word_database")
 //                    .fallbackToDestructiveMigration() // 这是破坏性的迁移，不保留原有的数据
-                    .addMigrations(MIGRATION_2_3) // 添加迁移规则
+                    .addMigrations(MIGRATION_3_4) // 添加迁移规则
                     .build();
         }
         return INSTANCE;
@@ -49,6 +49,16 @@ public abstract class WordDatabase extends RoomDatabase {
             database.execSQL("DROP TABLE word");
             // 将新的表，名字改为最初那个表的名字
             database.execSQL("ALTER TABLE word_temp RENAME TO word");
+        }
+    };
+
+    // 定义迁移规则,增加一个字段
+    static final Migration MIGRATION_3_4 = new Migration(3,4) { // 这里传入的是从那一个版本迁移到那一个版本
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // 执行SQL语句进行迁移
+            // 向表中添加一个字段，不影响之前的数据
+            database.execSQL("ALTER TABLE word ADD COLUMN chinese_invisible INTEGER NOT NULL DEFAULT 0");
         }
     };
 }

@@ -14,7 +14,18 @@ public class Word {
     @ColumnInfo(name = "chinese_meaning") // 指定在生成列时的列名称
     private String chineseMeaning;
 
-//    // 添加一个新的字段
+    @ColumnInfo(name = "chinese_invisible")
+    private boolean chineseInvisible;
+
+    public boolean isChineseInvisible() {
+        return chineseInvisible;
+    }
+
+    public void setChineseInvisible(boolean chineseInvisible) {
+        this.chineseInvisible = chineseInvisible;
+    }
+
+    //    // 添加一个新的字段
 //    @ColumnInfo(name = "foo_data")
 //    private boolean foo;
 //
