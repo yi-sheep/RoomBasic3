@@ -63,6 +63,10 @@ public abstract class WordDatabase extends RoomDatabase {
 }
 ```
 
+这个时候数据表的结构和数据应该是这样的
+
+<img src="https://yi-sheep.github.io/RoomBasic3/Res/image/2.png"/>
+
 添加一个字段我们知道了，那么删除一个字段怎么弄呢。
 先把word类中刚刚添加的字段删掉。
 ```java
@@ -131,6 +135,10 @@ public abstract class WordDatabase extends RoomDatabase {
 ```
 
 还是要仔细阅读，我们修改了开始的数据库版本号(version)，将添加的规则改成了新定义的 MIGRATION_2_3。
+
+这个时候数据表的结构和数据应该是这样的
+
+<img src="https://yi-sheep.github.io/RoomBasic3/Res/image/3.png"/>
 
 ---
 
