@@ -1,7 +1,7 @@
 # RoomBaslc3
 演示视频
 
-<video src="https://yi-sheep.github.io/RoomBasic2/Res/mp4/1.mp4"  autoplay loop muted>浏览器不支持播放该视频</video>
+<video src="https://yi-sheep.github.io/RoomBasic3/Res/mp4/1.mp4"  autoplay loop muted>浏览器不支持播放该视频</video>
 
 [无法播放点击](https://yi-sheep.github.io/RoomBasic2/Res/mp4/1.mp4)
 
@@ -140,9 +140,196 @@ public abstract class WordDatabase extends RoomDatabase {
 
 <img src="https://yi-sheep.github.io/RoomBasic3/Res/image/3.png"/>
 
+上面已经将关于数据库的版本迁移实现了，现在就来看看怎么在UI上实现呢，增加一个字段，使用这个字段保存当前单词是否，需要隐藏中文意思。
+添加字段:
+
+```java
+@ColumnInfo(name = "chinese_invisible")
+private boolean chineseInvisible;
+public boolean isChineseInvisible() {
+    return chineseInvisible;
+}
+public void setChineseInvisible(boolean chineseInvisible) {
+    this.chineseInvisible = chineseInvisible;
+}
+```
+
+具体意思上面也有说到，下一步就该进行数据库版本的迁移了，注意每一次修改都有将版本号加一。
+
+```java
+@Database(entities = {Word.class},version = 4,exportSchema = false) // 当对数据表实体做了新的更改就需要改变这里的版本
+public abstract class WordDatabase extends RoomDatabase {
+    private static WordDatabase INSTANCE;
+    static synchronized WordDatabase getDatabase(Context context) {
+        if (INSTANCE == null) {
+            INSTANCE = Room.databaseBuilder(context.getApplicationContext(),WordDatabase.class,"Word_database")
+//                    .fallbackToDestructiveMigration() // 这是破坏性的迁移，不保留原有的数据
+                    .addMigrations(MIGRATION_3_4) // 添加迁移规则
+                    .build();
+        }
+        return INSTANCE;
+    }
+    ...
+
+    // 定义迁移规则,增加一个字段
+    static final Migration MIGRATION_3_4 = new Migration(3,4) { // 这里传入的是从那一个版本迁移到那一个版本
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // 执行SQL语句进行迁移
+            // 向表中添加一个字段，不影响之前的数据
+            database.execSQL("ALTER TABLE word ADD COLUMN chinese_invisible INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+}
+```
+
+然后是再写两个itemView的布局，改之前的会有点混乱。
+默认布局
+
+<img src="https://yi-sheep.github.io/RoomBasic3/Res/image/4.png"/>
+
+卡片布局
+
+<img src="https://yi-sheep.github.io/RoomBasic3/Res/image/5.png"/>
+
+布局的代码可以去上面的仓库中找。
+下一步就是修改适配器了，仔细对比改前后和改后的区别，弄清楚意思。
+
+```java
+public class MyAdapter extends RecyclerView.Adapter<MyAdapter.ViewHolder> {
+    List<Word> mWords = new ArrayList<>(); // 用于获取数据
+    boolean useCardView; // 用于判断用户选择使用卡片item还是默认item
+    WordViewModel mWordViewModel; // 用于更新数据
+
+    /**
+     * 传入数据对象
+     * @param words
+     */
+    public void setWords(List<Word> words) {
+        mWords = words;
+    }
+
+    /**
+     * 在实例化当前适配器的时候传入一个布尔值和一个ViewModel
+     * true表示使用卡片item
+     * false表示使用默认item
+     * @param useCardView
+     */
+    public MyAdapter(boolean useCardView,WordViewModel wordViewModel) {
+        this.useCardView = useCardView;
+        this.mWordViewModel = wordViewModel;
+    }
+
+    @NonNull
+    @Override
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // 实现父类RecyclerView.Adapter中的抽象方法，在这个方法中初始化item，然后返回这个itemView
+        LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+        View itemView;
+        // 这里判断用户想要使用哪种item
+        if (useCardView) {
+            itemView = inflater.inflate(R.layout.item_c_layout_2, parent, false);
+        } else {
+            itemView = inflater.inflate(R.layout.item_layout_2, parent, false);
+        }
+        return new ViewHolder(itemView);
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+        // 这也是实现的父类的抽象方法，在这个方法中，做数据的绑定
+        Word word = mWords.get(position); // 通过position(当前是第几itemView)获取到word中的对应数据
+        holder.textViewNumber.setText(String.valueOf(position + 1)); // 设置布局中显示序号的textView,因为position是从0开始的，所以需要加1
+        holder.textViewEnglish.setText(word.getWord()); // 设置布局中显示单词的textView,通过获取到的word中对应数据对象获取到单词
+        holder.textViewChinese.setText(word.getChineseMeaning()); // 设置显示中文意思的textView
+
+        holder.mSwitch.setOnCheckedChangeListener(null); // 这一句能够解决itemView被回收后状态没有保存
+        // 判断当前单词是否隐藏中文意思
+        if (word.isChineseInvisible()) {
+            holder.textViewChinese.setVisibility(View.GONE);
+            holder.mSwitch.setChecked(true); // 当修改这个的时候会调用switch的点击事件，因为前面我们将点击事件设置为null了，所以不会出现调用下面的点击事件的情况
+        } else {
+            holder.textViewChinese.setVisibility(View.VISIBLE);
+            holder.mSwitch.setChecked(false);
+        }
+
+        // 给item设置点击事件
+        holder.itemView.setOnClickListener(v -> {
+            // 这里定义一个URI，使用的百度翻译的地址，通过分析前面一部分是固定的，想要翻译的单词跟在后面
+            // 比如要翻译hello,uri就是 https://fanyi.baidu.com/#en/zh/hello
+            Uri uri = Uri.parse("https://fanyi.baidu.com/#en/zh/" + holder.textViewEnglish.getText());
+            Intent intent = new Intent(Intent.ACTION_VIEW); // 定义一个隐式意图
+            intent.setData(uri); // 传递URI
+            holder.itemView.getContext().startActivity(intent); // 启动意图
+        });
+
+        holder.mSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                holder.textViewChinese.setVisibility(View.GONE);
+                word.setChineseInvisible(true);
+                mWordViewModel.updateWord(word);
+            } else {
+                holder.textViewChinese.setVisibility(View.VISIBLE);
+                word.setChineseInvisible(false);
+                mWordViewModel.updateWord(word);
+            }
+        });
+    }
+
+    @Override
+    public int getItemCount() {
+        // 实现父类的抽象方法，这个方法返回数据的长度
+        return mWords.size();
+    }
+
+    /**
+     * 这是自定义的ViewHolder
+     * 用来获取itemView中的控件
+     * 方便在适配器中直接对控件做操作
+     * 必须要有一个构造函数并接受一个View
+     */
+    static public class ViewHolder extends RecyclerView.ViewHolder {
+        TextView textViewNumber,textViewEnglish, textViewChinese;
+        Switch mSwitch;
+        public ViewHolder(View itemView) {
+            super(itemView);
+            textViewNumber = itemView.findViewById(R.id.textViewNumber);
+            textViewEnglish = itemView.findViewById(R.id.textViewEnglish);
+            textViewChinese = itemView.findViewById(R.id.textViewChinese);
+            mSwitch = itemView.findViewById(R.id.switch2);
+        }
+    }
+}
+
+```
+
+完成到这里，或许点击switch的时候会有点卡顿，原因是适配器中做的更新的操作，MainActivity中也做了更新操作，出现多余的情况，我们在MainActivity中做一个判断就行。
+
+```java
+注意看这串代码原来在哪里。不是新加入的
+mViewModel.getQueryAllWordLive().observe(this,words -> {
+            int temp = mAdapter.getItemCount();
+            int temp2 = mAdapter2.getItemCount();
+            // 在这里liveData监听到数据发生变化后
+            // 将两个适配器的数据都有设置好，再通过调用notifyDataSetChanged()方法告诉recyclerView数据发生了变化你需要刷新界面
+
+            mAdapter.setWords(words);
+            mAdapter2.setWords(words);
+            if (temp!=words.size()) {
+                mAdapter.notifyDataSetChanged();
+                mAdapter2.notifyDataSetChanged();
+            }
+        });
+```
+还有一个地方，就是在适配器中给构造方法加了一个参数，需要在MainActivity里面，传入
+```java
+mAdapter = new MyAdapter(true,mViewModel); // 初始化第一个适配器，使用的是卡片item
+mAdapter2 = new MyAdapter(false,mViewModel); // 初始化第二个适配器，使用的是默认item
+```
+
 ---
 
-感谢B站大佬longway777的[视频教程](https://www.bilibili.com/video/BV1b4411171L)
+感谢B站大佬longway777的[视频教程1](https://www.bilibili.com/video/BV1b4411171L)[视频教程2](https://www.bilibili.com/video/BV16J411N7bL)
 
 如果侵权，请联系qq:1766816333
 立即删除
